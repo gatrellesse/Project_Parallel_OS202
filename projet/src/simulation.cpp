@@ -199,8 +199,8 @@ int main( int nargs, char* args[] )
     if (!check_params(params)) return EXIT_FAILURE;
 
     auto displayer = Displayer::init_instance( params.discretization, params.discretization );
-    auto simu = Model( params.length, params.discretization, params.wind,
-                       params.start);
+    Model simu(params.length, params.discretization, params.wind,
+               params.start);
     SDL_Event event;
     while (simu.update())
     {
