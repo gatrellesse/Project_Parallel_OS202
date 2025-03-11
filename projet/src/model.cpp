@@ -2,6 +2,8 @@
 #include <cmath>
 #include <iostream>
 #include "model.hpp"
+#include <fstream>
+#include <string>
 
 
 namespace
@@ -36,6 +38,15 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
     }
     m_distance = m_length/double(m_geometry);
     auto index = get_index_from_lexicographic_indices(t_start_fire_position);
+    //Create txt with the history of the fire
+    std::ofstream file("dataRun.txt",  std::ios::trunc);
+    if (!file) {
+        std::cerr << "Error opening file.\n";
+        
+    }
+    file << "Row Column Clef"<<"\n"; //append header tableau
+    file.close();
+
     m_fire_map[index] = 255u;
     m_fire_front[index] = 255u;
 
@@ -80,6 +91,15 @@ Model::update()
     {
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
+        int clef_tableau = get_index_from_lexicographic_indices(coord);
+        // Sauvagarder des clefs
+        std::ofstream file("dataRun.txt", std::ios::app);
+        if (!file) {
+            std::cerr << "Error opening file.\n";
+            return 1;
+        }
+        file << coord.row << " "<< coord.column << " " << clef_tableau <<"\n"; //append header tableau
+        file.close();
         // Et de la puissance du foyer
         double        power = log_factor(f.second);
 
