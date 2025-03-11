@@ -2,9 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include "model.hpp"
-#include <fstream>
-#include <string>
-
+#include <chrono>
 
 namespace
 {
@@ -38,15 +36,6 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
     }
     m_distance = m_length/double(m_geometry);
     auto index = get_index_from_lexicographic_indices(t_start_fire_position);
-    //Create txt with the history of the fire
-    std::ofstream file("dataRun.txt",  std::ios::trunc);
-    if (!file) {
-        std::cerr << "Error opening file.\n";
-        
-    }
-    file << "Row Column Clef"<<"\n"; //append header tableau
-    file.close();
-
     m_fire_map[index] = 255u;
     m_fire_front[index] = 255u;
 
@@ -83,25 +72,20 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
     }
 }
 // --------------------------------------------------------------------------------------------------------------------
-bool 
+std::pair<bool, double>
 Model::update()
 {
     auto next_front = m_fire_front;
-    for (auto f : m_fire_front)
+    auto start_time = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < m_fire_front.size(); ++i)
     {
+        auto it = std::next(m_fire_front.begin(), i);
+        auto f = *it;
+
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
-        int clef_tableau = get_index_from_lexicographic_indices(coord);
-        // Sauvagarder des clefs
-        std::ofstream file("dataRun.txt", std::ios::app);
-        if (!file) {
-            std::cerr << "Error opening file.\n";
-            return 1;
-        }
-        file << coord.row << " "<< coord.column << " " << clef_tableau <<"\n"; //append header tableau
-        file.close();
         // Et de la puissance du foyer
-        double        power = log_factor(f.second);
+        double  power = log_factor(f.second);
 
 
         // On va tester les cases voisines pour contamination par le feu :
@@ -176,13 +160,19 @@ Model::update()
     }    
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
+    
     for (auto f : m_fire_front)
     {
         if (m_vegetation_map[f.first] > 0)
             m_vegetation_map[f.first] -= 1;
     }
     m_time_step += 1;
-    return !m_fire_front.empty();
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seq = end_time - start_time;
+    bool ret = !m_fire_front.empty();
+    double elapsed_time = elapsed_seq.count();
+
+    return std::make_pair(ret, elapsed_time);
 }
 // ====================================================================================================================
 std::size_t   

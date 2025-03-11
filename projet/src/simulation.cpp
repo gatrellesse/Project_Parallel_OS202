@@ -202,14 +202,33 @@ int main( int nargs, char* args[] )
     auto simu = Model( params.length, params.discretization, params.wind,
                        params.start);
     SDL_Event event;
-    while (simu.update())
+    int n_iterations = 0;
+    double time_display = 0;
+    double time_update = 0 ;
+    bool isRunning = true;
+    while (isRunning)
     {
+        auto result = simu.update();
+        isRunning = result.first;
+        double elapsed_time = result.second;
+        time_update += elapsed_time;
+        n_iterations += 1;
+
         if ((simu.time_step() & 31) == 0) 
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+        auto start_time = std::chrono::high_resolution_clock::now();
         displayer->update( simu.vegetal_map(), simu.fire_map() );
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seq = end_time - start_time;
+        time_display += elapsed_seq.count();
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        //std::this_thread::sleep_for(0.1s);
+        std::this_thread::sleep_for(0.1s);
     }
+    std::cout << "n_iterations " << n_iterations << std::endl;
+    std::cout << "time_update " << time_update << std::endl;
+    std::cout << "time_affichage " << time_display << std::endl;
+    std::cout << "Avg time update " << time_update / n_iterations << " seconds" << std::endl;
+    std::cout << "Avg time affichage " << time_display / n_iterations << " seconds" << std::endl;
     return EXIT_SUCCESS;
 }
