@@ -2,9 +2,8 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
-#if defined(__linux__)
-#  include <SDL2/SDL.h>
-#endif
+#include <SDL2/SDL.h>
+
 class Displayer
 {
 public:

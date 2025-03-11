@@ -1,2 +1,6 @@
 *.o
 *.exe
+*include*
+*lib*
+*.dll
+*.vscode
