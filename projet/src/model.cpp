@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include "model.hpp"
+#include <ctime>
 
 
 namespace
@@ -23,12 +24,14 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
               LexicoIndices t_start_fire_position, double t_max_wind )
     :   m_length(t_length),
         m_distance(-1),
+        m_time_step(0),
         m_geometry(t_discretization),
         m_wind(t_wind),
         m_wind_speed(std::sqrt(t_wind[0]*t_wind[0] + t_wind[1]*t_wind[1])),
         m_max_wind(t_max_wind),
         m_vegetation_map(t_discretization*t_discretization, 255u),
         m_fire_map(t_discretization*t_discretization, 0u)
+        //m_time_step(0)
 {
     if (t_discretization == 0)
     {
@@ -73,8 +76,9 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
 }
 // --------------------------------------------------------------------------------------------------------------------
 bool 
-Model::update()
+Model::update(float * time_update)
 {
+    clock_t start = clock();
     auto next_front = m_fire_front;
     for (auto f : m_fire_front)
     {
@@ -162,6 +166,7 @@ Model::update()
             m_vegetation_map[f.first] -= 1;
     }
     m_time_step += 1;
+    *time_update += (float)(clock() - start) / CLOCKS_PER_SEC;
     return !m_fire_front.empty();
 }
 // ====================================================================================================================

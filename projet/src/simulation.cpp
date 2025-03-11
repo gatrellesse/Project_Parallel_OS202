@@ -201,15 +201,33 @@ int main( int nargs, char* args[] )
     auto displayer = Displayer::init_instance( params.discretization, params.discretization );
     auto simu = Model( params.length, params.discretization, params.wind,
                        params.start);
+
+    float time_update = 0;
+    float time_affichage = 0;
+    float time_time_step = 0;
+    int n_iterations = 0;
+
     SDL_Event event;
-    while (simu.update())
+    while (simu.update(&time_update))
     {
-        if ((simu.time_step() & 31) == 0) 
+        n_iterations++;  
+        std::size_t m_time_step = simu.time_step();
+
+        if ((m_time_step & 31) == 0) 
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+       
+        clock_t start = clock();
         displayer->update( simu.vegetal_map(), simu.fire_map() );
+        time_affichage += (float)(clock() - start) / CLOCKS_PER_SEC;
+
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+        //std::this_thread::sleep_for(0.1s);
     }
+    std::cout << "n_iterations " << n_iterations << std::endl;
+    std::cout << "time_update " << time_update << std::endl;
+    std::cout << "time_affichage " << time_affichage << std::endl;
+    std::cout << "Avg time update " << time_update / n_iterations << " seconds" << std::endl;
+    std::cout << "Avg time affichage " << time_affichage / n_iterations << " seconds" << std::endl;
     return EXIT_SUCCESS;
 }
