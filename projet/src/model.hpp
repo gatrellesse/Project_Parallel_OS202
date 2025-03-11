@@ -30,6 +30,7 @@ public:
     unsigned geometry() const { return m_geometry; }
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
+    std::vector<std::vector<std::size_t>> keys_by_step() const { return m_keys_by_step; }
     std::size_t time_step() const { return m_time_step; }
 
 private:
@@ -46,6 +47,6 @@ private:
     std::vector<std::uint8_t> m_vegetation_map, m_fire_map;
     double p1{0.}, p2{0.};
     double alphaEastWest, alphaWestEast, alphaSouthNorth, alphaNorthSouth;
-
+    std::vector<std::vector<std::size_t>> m_keys_by_step;
     std::unordered_map<std::size_t, std::uint8_t> m_fire_front;
 };
