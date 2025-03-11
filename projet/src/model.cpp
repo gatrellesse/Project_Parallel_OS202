@@ -3,7 +3,7 @@
 #include <iostream>
 #include "model.hpp"
 #include <ctime>
-
+#include <omp.h>
 
 namespace
 {
@@ -85,11 +85,11 @@ Model::update(float * time_update)
     #pragma omp parallel for
     for (auto it = m_fire_front_vector.begin(); it != m_fire_front_vector.end(); it++)
     {
+        //std::cout << omp_get_thread_num() << std::endl;
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(*it);
         // Et de la puissance du foyer
         double power = log_factor(m_fire_front[*it]);
-
 
         // On va tester les cases voisines pour contamination par le feu :
         if (coord.row < m_geometry-1)
@@ -139,6 +139,7 @@ Model::update(float * time_update)
                 next_front[*it - 1] = 255.;
             }
         }
+        
         // Si le feu est à son max,
         if (m_fire_front[*it] == 255)
         {   // On regarde si il commence à faiblir pour s'éteindre au bout d'un moment :
@@ -159,11 +160,8 @@ Model::update(float * time_update)
                 next_front.erase(*it);
             }
         }
-
     }   
-    std::vector<std::size_t> keys;
-    for(auto f : m_fire_front) keys.push_back(f.first);
-    m_keys_by_step.push_back(keys);
+    m_keys_by_step.push_back(m_fire_front_vector);
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
     for (auto f : m_fire_front)

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <fstream>
 #include <string>
+#include <algorithm>
 
 #include "model.hpp"
 #include "display.hpp"
@@ -234,11 +235,12 @@ int main( int nargs, char* args[] )
 
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        //std::this_thread::sleep_for(0.1s);
+        std::this_thread::sleep_for(0.1s);
     }
     std::ofstream out_file;
     out_file.open("example-v"+params.version+".txt");
     for( auto keys : simu.keys_by_step()) {
+        std::sort(keys.begin(), keys.end()); 
         for( auto element : keys ) out_file << " " << element ;
         out_file << std::endl;
     }
