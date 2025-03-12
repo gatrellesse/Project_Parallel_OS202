@@ -3,10 +3,10 @@ include Make_msys2.inc
 include Make_osx.inc
 
 # Use mpicxx (MPI compiler) if available, otherwise fallback to g++
-CXX = mpicxx
+# CXX = mpicxx
 
-CXXFLAGS = -std=c++17 -fopenmp -fopenmp-simd -DOMPI_SKIP_MPICXX
-MPIFLAGS = -I/usr/lib/x86_64-linux-gnu/openmpi/include -L/usr/lib/x86_64-linux-gnu -lmpi
+# CXXFLAGS = -std=c++17 -fopenmp -fopenmp-simd -DOMPI_SKIP_MPICXX
+# MPIFLAGS = -I/usr/lib/x86_64-linux-gnu/openmpi/include -L/usr/lib/x86_64-linux-gnu -lmpi
 
 # SDL2 flags
 SDL2FLAGS = -lSDL2
