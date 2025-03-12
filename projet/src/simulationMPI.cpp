@@ -4,7 +4,10 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <stdio.h>
+#include <mpi.h>
 #include <numeric>  // For std::accumulate
+
 #include "model.hpp"
 #include "display.hpp"
 
@@ -198,7 +201,16 @@ int main( int nargs, char* args[] )
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    auto displayer = Displayer::init_instance( params.discretization, params.discretization );
+    int rank, world;
+    MPI_Init(&nargs, &args);
+    MPI_Comm_size(MPI_COMM_WORLD, &world);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    std::shared_ptr<Displayer> displayer = nullptr;
+    
+    if (rank == 0){
+        displayer = Displayer::init_instance( params.discretization, params.discretization );
+    }
+    // std::unique_ptr<Model> simu = nullptr;
     
     // Vectors to store results for each run
     int num_runs = 100;
@@ -207,64 +219,101 @@ int main( int nargs, char* args[] )
     std::vector<double> avg_time_display(num_runs, 0.0);
     std::vector<double> avg_time_update(num_runs, 0.0);
     std::vector<double> global_times(num_runs, 0.0);
-
+    // auto simu = Model( params.length, params.discretization, params.wind,
+    //                    params.start);
     for(int run = 0; run < num_runs; ++run){
-        auto simu = Model( params.length, params.discretization, params.wind,
-            params.start);
         SDL_Event event;
         int n_iterations = 0;
+        int maps_sizes = params.discretization * params.discretization;
         double time_display = 0;
         double time_update = 0 ;
         double time_global = 0;
         bool isRunning = true;
-        std::cout<<"RUN number: "<<run<<std::endl;
+        std::pair<bool,double> result;
+        MPI_Request send_request1, send_request2, send_request3;
+        MPI_Request recv_request1, recv_request2, recv_request3;
+        std::unique_ptr<Model> simu = nullptr;
+        if (rank != 0) {
+            simu = std::make_unique<Model>(params.length, params.discretization, params.wind, params.start);
+    
+        }
+        
         while (isRunning)
         {
             auto start_global_time = std::chrono::high_resolution_clock::now();
-            
-            auto result = simu.update();
-            isRunning = result.first;
-            double elapsed_time = result.second;
-            time_update += elapsed_time;
             n_iterations += 1;
+            if (rank != 0) {
+                result = simu->update();
+                isRunning = result.first;
+                MPI_Isend(&isRunning, 1,  MPI_CXX_BOOL, 0, 101, MPI_COMM_WORLD, &send_request1);
+                MPI_Isend(simu->vegetal_map().data(), maps_sizes, MPI_BYTE, 0, 102, MPI_COMM_WORLD, &send_request2);
+                MPI_Isend(simu->fire_map().data(), maps_sizes, MPI_BYTE, 0, 103, MPI_COMM_WORLD, &send_request3);
+                double elapsed_time = result.second;
+                time_update += elapsed_time;
+                if ((simu->time_step() & 31) == 0){
+                    std::cout << "Time step " << simu->time_step() << "\n===============" << std::endl;
+                }
+            }
 
-            if ((simu.time_step() & 31) == 0) 
-                std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-            auto start_time = std::chrono::high_resolution_clock::now();
-            displayer->update( simu.vegetal_map(), simu.fire_map() );
-            auto end_time = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_seq = end_time - start_time;
-            time_display += elapsed_seq.count();
             
-            elapsed_seq = end_time - start_global_time;
-            time_global += elapsed_seq.count();
-            
+            if (rank == 0) {
+                std::vector<std::uint8_t> m_vegetal_map(maps_sizes);
+                std::vector<std::uint8_t> m_fire_map(maps_sizes);
+                
+                // Receive isRunning (bool) from rank 1
+                MPI_Irecv(&isRunning, 1, MPI_CXX_BOOL, 1, 101, MPI_COMM_WORLD, &recv_request1);
+                MPI_Irecv(m_vegetal_map.data(), maps_sizes, MPI_BYTE, 1, 102, MPI_COMM_WORLD, &recv_request2);
+                MPI_Irecv(m_fire_map.data(), maps_sizes, MPI_BYTE, 1, 103, MPI_COMM_WORLD, &recv_request3) ;
+                // Wait for all receives to complete
+                MPI_Wait(&recv_request1, MPI_STATUS_IGNORE);
+                MPI_Wait(&recv_request2, MPI_STATUS_IGNORE);
+                MPI_Wait(&recv_request3, MPI_STATUS_IGNORE);
+                auto start_time = std::chrono::high_resolution_clock::now();
+                displayer->update(m_vegetal_map, m_fire_map);
+                auto end_time = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed_seq = end_time - start_time;
+                time_display += elapsed_seq.count();
+
+                elapsed_seq = end_time - start_global_time;
+                time_global += elapsed_seq.count();
+            }
+
             if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                 break;
             //std::this_thread::sleep_for(0.1s);
         }
-        // Store results for this run
-        global_times[run] = time_global;
-        time_displays[run] = time_display;
-        avg_time_display[run] = time_display/n_iterations;
-        time_updates[run] = time_update;
-        avg_time_update[run] = time_update/n_iterations;
-        // std::cout << "time_update " << time_update << std::endl;
-        // std::cout << "Avg time update " << time_update / n_iterations << " seconds" << std::endl;
-        // std::cout << "n_iterations " << n_iterations << std::endl;
-        // std::cout << "time_affichage " << time_display << std::endl;
-        // std::cout << "Avg time affichage " << time_display / n_iterations << " seconds" << std::endl;        
+        if (rank == 0){
+            // std::cout << "n_iterations " << n_iterations << std::endl;
+            // std::cout << "time_affichage " << time_display << std::endl;
+            // std::cout << "Avg time affichage " << time_display / n_iterations << " seconds" << std::endl;
+            time_displays[run] = time_display;
+            avg_time_display[run] = time_display/n_iterations;
+            global_times[run] = time_global;
+        }
+        else{
+            // std::cout << "time_update " << time_update << std::endl;
+            // std::cout << "Avg time update " << time_update / n_iterations << " seconds" << std::endl;    
+            time_updates[run] = time_update;
+            avg_time_update[run] = time_update/n_iterations;
+        }
     }
+    
     double ovr_time_display = std::accumulate(time_displays.begin(), time_displays.end(), 0.0) / num_runs;
     double ovr_time_updates = std::accumulate(time_updates.begin(), time_updates.end(), 0.0) / num_runs;
     double ovr_avg_time_display = std::accumulate(avg_time_display.begin(), avg_time_display.end(), 0.0) / num_runs;
     double ovr_avg_time_updates = std::accumulate(avg_time_update.begin(), avg_time_update.end(), 0.0) / num_runs;
     double ovr_time_global = std::accumulate(global_times.begin(), global_times.end(), 0.0) / num_runs;
-    
-    std::cout << "Overall global time " << ovr_time_global << std::endl;
-    std::cout << "time_update " << ovr_time_updates << std::endl;
-    std::cout << "Avg time update " << ovr_avg_time_updates << " seconds" << std::endl;
-    std::cout << "time_affichage " << ovr_time_display << std::endl;
-    std::cout << "Avg time affichage " << ovr_avg_time_display << " seconds" << std::endl;        
+    if(rank==0){
+        std::cout << "Overall global time " << ovr_time_global << std::endl;
+    }
+    if(rank != 0){
+        std::cout << "time_update " << ovr_time_updates << std::endl;
+        std::cout << "Avg time update " << ovr_avg_time_updates << " seconds" << std::endl;
+    }
+    else{
+        std::cout << "time_affichage " << ovr_time_display << std::endl;
+        std::cout << "Avg time affichage " << ovr_avg_time_display << " seconds" << std::endl;        
+    }
+    MPI_Finalize();
     return EXIT_SUCCESS;
 }
