@@ -31,7 +31,7 @@ clean:
 .cpp.o:
 	$(CXX) $(CXXFLAGS2) -c $^ -o $@	
 
-simulation.exe : display.o display.hpp model.o model.hpp simulationMPI.o
+simulation.exe : display.o display.hpp model.o model.hpp simulation.o
 	$(CXX) $(CXXFLAGS2) $^ -o $@ $(LIB) $(MPIFLAGS) $(SDL2FLAGS)
 
 help:
