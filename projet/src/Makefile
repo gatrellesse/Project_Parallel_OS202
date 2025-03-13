@@ -2,6 +2,7 @@ include Make_linux.inc
 #include Make_msys2.inc
 #include Make_osx.inc
 
+CXX = $(MPICXX)
 CXXFLAGS = -std=c++17
 ifdef DEBUG
 CXXFLAGS += -g -O0 -Wall -fbounds-check -pedantic -D_GLIBCXX_DEBUG

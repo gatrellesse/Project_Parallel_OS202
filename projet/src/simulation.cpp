@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <omp.h>
 #include <iomanip>
+#include <mpi.h>
 
 #include "model.hpp"
 #include "display.hpp"
@@ -206,56 +207,92 @@ void display_params(ParamsType const& params)
               << "\tNombre de cellules par direction : " << params.discretization << std::endl 
               << "\tVecteur vitesse : [" << params.wind[0] << ", " << params.wind[1] << "]" << std::endl
               << "\tPosition initiale du foyer (col, ligne) : " << params.start.column << ", " << params.start.row << std::endl;
-schedule(dynamic, 64)}
+}
 
-schedule(dynamic, 64)int main( int nargs, char* args[] )
-{
+int main( int nargs, char* args[] ) {
     auto params = parse_arguments(nargs-1, &args[1]);
     //display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    auto displayer = Displayer::init_instance( params.discretization, params.discretization );
-    auto simu = Model( params.length, params.discretization, params.wind,
-                       params.start);
+    int rank, world;
+    MPI_Init(&nargs, &args);
+    MPI_Comm_size(MPI_COMM_WORLD, &world);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    std::shared_ptr<Displayer> displayer = nullptr;
+    if (rank == 0) displayer = Displayer::init_instance( params.discretization, params.discretization );
+    //auto simu = Model( params.length, params.discretization, params.wind, params.start);
+
+    int maps_sizes = params.discretization * params.discretization;
     float time_update = 0;
     float time_for = 0;
     double time_affichage = 0;
     int n_iterations = 0;
 
+    MPI_Request send_request1, send_request2, send_request3;
+    MPI_Request recv_request1, recv_request2, recv_request3;
+    bool isRunning = true;
+
+    std::unique_ptr<Model> simu = nullptr;
+    if (rank == 1) {
+        simu = std::make_unique<Model>(params.length, params.discretization, params.wind, params.start);
+        isRunning = simu->update(&time_update, &time_for);
+    }
+
     SDL_Event event;
     double global_start = omp_get_wtime();
-    while (simu.update(&time_update, &time_for))
+    while (isRunning)
     {
         n_iterations++;  
-        //std::size_t m_time_step = simu.time_step();
-
-        //if ((m_time_step & 31) == 0) 
-            //std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-       
-        double start = omp_get_wtime();
-        displayer->update( simu.vegetal_map(), simu.fire_map() );
-        time_affichage += (omp_get_wtime() - start);
-
-        if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
-            break;
-        //std::this_thread::sleep_for(0.1s);
+        if(rank == 1) {
+            MPI_Isend(&isRunning, 1,  MPI_CXX_BOOL, 0, 101, MPI_COMM_WORLD, &send_request1);
+            MPI_Isend(simu->vegetal_map().data(), maps_sizes, MPI_UINT8_T, 0, 102, MPI_COMM_WORLD, &send_request2);
+            MPI_Isend(simu->fire_map().data(), maps_sizes, MPI_UINT8_T, 0, 103, MPI_COMM_WORLD, &send_request3);
+            isRunning = simu->update(&time_update, &time_for);
+            int ready1 = 0, ready2 = 0, ready3 = 0;
+            while (!ready1 || !ready2 || !ready3) {
+                MPI_Test(&send_request1, &ready1, MPI_STATUS_IGNORE);
+                MPI_Test(&send_request2, &ready2, MPI_STATUS_IGNORE);
+                MPI_Test(&send_request3, &ready3, MPI_STATUS_IGNORE);
+            }
+        }
+        if(rank==0){
+            std::vector<std::uint8_t> m_vegetal_map(maps_sizes);
+            std::vector<std::uint8_t> m_fire_map(maps_sizes);
+            // Receive isRunning (bool) from rank 1
+            MPI_Irecv(&isRunning, 1, MPI_CXX_BOOL, 1, 101, MPI_COMM_WORLD, &recv_request1);
+            MPI_Irecv(m_vegetal_map.data(), maps_sizes, MPI_UINT8_T, 1, 102, MPI_COMM_WORLD, &recv_request2);
+            MPI_Irecv(m_fire_map.data(), maps_sizes, MPI_UINT8_T, 1, 103, MPI_COMM_WORLD, &recv_request3) ;
+            // Wait for all receives to complete
+            MPI_Wait(&recv_request1, MPI_STATUS_IGNORE);
+            MPI_Wait(&recv_request2, MPI_STATUS_IGNORE);
+            MPI_Wait(&recv_request3, MPI_STATUS_IGNORE);
+            double start_affichage = omp_get_wtime();
+            displayer->update(m_vegetal_map, m_fire_map);
+            time_affichage += omp_get_wtime() - start_affichage; 
+        }
+        if (SDL_PollEvent(&event) && event.type == SDL_QUIT) break;
     }
-    std::cout << "global_time " << omp_get_wtime() - global_start << std::endl;
-    std::ofstream out_file;
-    out_file.open("example-v"+params.version+".txt");
-    for( auto keys : simu.keys_by_step()) {
-        std::sort(keys.begin(), keys.end()); 
-        for( auto element : keys ) out_file << " " << element ;
-        out_file << std::endl;
+    if(rank == 1) {
+        MPI_Isend(&isRunning, 1,  MPI_CXX_BOOL, 0, 101, MPI_COMM_WORLD, &send_request1);
+        MPI_Isend(simu->vegetal_map().data(), maps_sizes, MPI_UINT8_T, 0, 102, MPI_COMM_WORLD, &send_request2);
+        MPI_Isend(simu->fire_map().data(), maps_sizes, MPI_UINT8_T, 0, 103, MPI_COMM_WORLD, &send_request3);
     }
-    std::cout << "n_iterations " << n_iterations << std::endl;
-    //std::cout << "time_update " << time_update << std::endl;
-    //std::cout << "time_affichage " << time_affichage << std::endl;
+    if(rank == 0) std::cout << "global_time " << omp_get_wtime() - global_start << std::endl;
+    if(rank == 1) {
+        std::ofstream out_file;
+        out_file.open("example-v"+params.version+".txt");
+        for( auto keys : simu->keys_by_step()) {
+            std::sort(keys.begin(), keys.end()); 
+            for( auto element : keys ) out_file << " " << element ;
+            out_file << std::endl;
+        }
+    }
+    if(rank == 0) std::cout << "n_iterations " << n_iterations << std::endl;
     std::cout << std::fixed;
-    std::cout << std::setprecision(10) << "avg_time_update " << time_update / n_iterations << std::endl;
-    std::cout << std::setprecision(10) << "avg_time_for " << time_for / n_iterations << std::endl;
-    std::cout << std::setprecision(10) << "avg_time_affichage " << time_affichage / n_iterations << std::endl;
-    SDL_Quit();
+    if(rank != 0) std::cout << std::setprecision(10) << "avg_time_update " << time_update / n_iterations << std::endl;
+    if(rank == 0) std::cout << std::setprecision(10) << "avg_time_affichage " << time_affichage / n_iterations << std::endl;
+    if(rank == 0) SDL_Quit();
+    MPI_Finalize();
     return EXIT_SUCCESS;
 }
