@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
+#include <omp.h>
 
 #include "model.hpp"
 #include "display.hpp"
@@ -209,7 +210,7 @@ void display_params(ParamsType const& params)
 int main( int nargs, char* args[] )
 {
     auto params = parse_arguments(nargs-1, &args[1]);
-    display_params(params);
+    //display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
     auto displayer = Displayer::init_instance( params.discretization, params.discretization );
@@ -217,26 +218,28 @@ int main( int nargs, char* args[] )
                        params.start);
 
     float time_update = 0;
-    float time_affichage = 0;
+    double time_affichage = 0;
     int n_iterations = 0;
 
     SDL_Event event;
+    double global_start = omp_get_wtime();
     while (simu.update(&time_update))
     {
         n_iterations++;  
-        std::size_t m_time_step = simu.time_step();
+        //std::size_t m_time_step = simu.time_step();
 
-        if ((m_time_step & 31) == 0) 
-            std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+        //if ((m_time_step & 31) == 0) 
+            //std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
        
-        clock_t start = clock();
+        double start = omp_get_wtime();
         displayer->update( simu.vegetal_map(), simu.fire_map() );
-        time_affichage += (float)(clock() - start) / CLOCKS_PER_SEC;
+        time_affichage += (omp_get_wtime() - start);
 
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+        //std::this_thread::sleep_for(0.1s);
     }
+    std::cout << "global_time " << omp_get_wtime() - global_start << std::endl;
     std::ofstream out_file;
     out_file.open("example-v"+params.version+".txt");
     for( auto keys : simu.keys_by_step()) {
@@ -245,9 +248,10 @@ int main( int nargs, char* args[] )
         out_file << std::endl;
     }
     std::cout << "n_iterations " << n_iterations << std::endl;
-    std::cout << "time_update " << time_update << std::endl;
-    std::cout << "time_affichage " << time_affichage << std::endl;
-    std::cout << "Avg time update " << time_update / n_iterations << " seconds" << std::endl;
-    std::cout << "Avg time affichage " << time_affichage / n_iterations << " seconds" << std::endl;
+    //std::cout << "time_update " << time_update << std::endl;
+    //std::cout << "time_affichage " << time_affichage << std::endl;
+    std::cout << "avg_time_update " << time_update / n_iterations << std::endl;
+    std::cout << "avg_time_affichage " << time_affichage / n_iterations << std::endl;
+    SDL_Quit();
     return EXIT_SUCCESS;
 }
