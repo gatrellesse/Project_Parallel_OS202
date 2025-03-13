@@ -246,15 +246,15 @@ int main(int nargs, char* args[]) {
             //                  end_time - start_time)
             //                  .count()
             //           << " ms" << std::endl;
-            
+
             // std::cout << isRunning << " " << map_sz << std::endl;
-            if (!isRunning){
-                for (int i = 0; i < 1000;i++){
+            if (!isRunning) {
+                for (int i = 0; i < 1000; i++) {
                     MPI_Isend(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, &is_running_request);
                     MPI_Isend(simu.fire_map().data(), map_sz, MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &fire_map_request);
                     MPI_Isend(simu.vegetal_map().data(), map_sz, MPI_UINT8_T, 0, 2, MPI_COMM_WORLD, &vegetal_map_request);
                 }
-                std:: cout << "Stopping simulation" << std::endl;
+                std::cout << "Stopping simulation" << std::endl;
                 break;
             }
 
@@ -269,9 +269,8 @@ int main(int nargs, char* args[]) {
                 MPI_Isend(simu.fire_map().data(), map_sz, MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &fire_map_request);
             if (is_vegetal_map_received)
                 MPI_Isend(simu.vegetal_map().data(), map_sz, MPI_UINT8_T, 0, 2, MPI_COMM_WORLD, &vegetal_map_request);
-            
-            
-            if ((simu.time_step() & 31) == 0){
+
+            if ((simu.time_step() & 31) == 0) {
                 std::cout << "Time step " << simu.time_step()
                           << "\n===============" << std::endl;
                 std::cout.flush();
@@ -279,7 +278,7 @@ int main(int nargs, char* args[]) {
 
             // std::this_thread::sleep_for(0.1s);
         }
-        
+
         if (rank == 0) {
             std::vector<uint8_t> fire_map(map_sz), vegetal_map(map_sz);
             MPI_Recv(&isRunning, 1, MPI_INT32_T, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -289,16 +288,16 @@ int main(int nargs, char* args[]) {
             // std::cout << "Received fire_map " << fire_map.size() << std::endl;
             MPI_Recv(vegetal_map.data(), map_sz, MPI_UINT8_T, 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             // std::cout << "Received vegetal_map " << vegetal_map.size() << std::endl;
-            
-            if (fire_map.size() != map_sz){
+
+            if (fire_map.size() != map_sz) {
                 std::cerr << "Fire map size mismatch" << std::endl;
                 return EXIT_FAILURE;
             }
-            if (vegetal_map.size() != map_sz){
+            if (vegetal_map.size() != map_sz) {
                 std::cerr << "Vegetal map size mismatch" << std::endl;
                 return EXIT_FAILURE;
             }
-            
+
             // std::cout << "Updating" << std::endl;
             auto start_time = std::chrono::high_resolution_clock::now();
             displayer->update(vegetal_map, fire_map);
@@ -311,13 +310,18 @@ int main(int nargs, char* args[]) {
         }
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT) break;
     }
-    if (rank != 0){
-        std::cout << "Average update time : " << avg_update_time / simu.time_step() / 1000 << " ms" << std::endl;
+    if (rank != 0) {
+        std::cout << "Average update time: " << avg_update_time / simu.time_step() / 1000 << " ms" << std::endl;
     } else {
-        std::cout << "Average display time : " << avg_display_time / frame_count / 1000 << " ms" << std::endl;
+        std::cout << "Average display time: " << avg_display_time / frame_count / 1000 << " ms" << std::endl;
     }
 
     std::cout << "Simulation finished " << rank << std::endl;
+    auto simulation_end = std::chrono::high_resolution_clock::now();
+    auto simulation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(simulation_end - simulation_start).count();
+    if (rank == 1)
+        std::cout << "Simulation time (n = " << params.discretization << "): " << simulation_duration << " ms" << std::endl;
+
     MPI_Finalize();
     return EXIT_SUCCESS;
 }
