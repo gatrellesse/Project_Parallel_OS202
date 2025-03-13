@@ -1,8 +1,9 @@
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
-#include "model.hpp"
 #include <chrono>
+#include "model.hpp"
+
 
 namespace
 {
@@ -72,20 +73,16 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
     }
 }
 // --------------------------------------------------------------------------------------------------------------------
-std::pair<bool, double>
+bool 
 Model::update()
 {
     auto next_front = m_fire_front;
-    auto start_time = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < m_fire_front.size(); ++i)
+    for (auto f : m_fire_front)
     {
-        auto it = std::next(m_fire_front.begin(), i);
-        auto f = *it;
-
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
         // Et de la puissance du foyer
-        double  power = log_factor(f.second);
+        double        power = log_factor(f.second);
 
 
         // On va tester les cases voisines pour contamination par le feu :
@@ -160,19 +157,13 @@ Model::update()
     }    
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
-    
     for (auto f : m_fire_front)
     {
         if (m_vegetation_map[f.first] > 0)
             m_vegetation_map[f.first] -= 1;
     }
     m_time_step += 1;
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_seq = end_time - start_time;
-    bool ret = !m_fire_front.empty();
-    double elapsed_time = elapsed_seq.count();
-
-    return std::make_pair(ret, elapsed_time);
+    return !m_fire_front.empty();
 }
 // ====================================================================================================================
 std::size_t   

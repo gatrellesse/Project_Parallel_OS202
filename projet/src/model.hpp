@@ -25,12 +25,13 @@ public:
     Model& operator = ( Model const & ) = delete;
     Model& operator = ( Model      && ) = delete;
 
-    std::pair<bool, double> update();
+    bool update();
 
     unsigned geometry() const { return m_geometry; }
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
     std::size_t time_step() const { return m_time_step; }
+    void reset_time_step() { m_time_step = 0; }
 
 private:
     std::size_t   get_index_from_lexicographic_indices( LexicoIndices t_lexico_indices  ) const;

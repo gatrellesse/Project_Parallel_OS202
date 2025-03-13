@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <memory>
 #include <SDL2/SDL.h>
-
 class Displayer
 {
 public:
