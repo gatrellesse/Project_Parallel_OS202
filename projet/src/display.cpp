@@ -1,6 +1,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <string> 
+#include <iostream>
 #include "display.hpp"
 
 using namespace std::string_literals;
@@ -61,9 +62,9 @@ Displayer::update( std::vector<std::uint8_t> const & vegetation_global_map,
     SDL_SetRenderDrawColor(m_pt_renderer, 0,0,0, 255);
     SDL_RenderClear(m_pt_renderer);
     for (int i = 0; i < h; ++i )
-      for (int j =  0; j < w; ++j )
+      for (int j = 0; j < w; ++j )
       {
-        SDL_SetRenderDrawColor(m_pt_renderer, fire_global_map[j + w*i], vegetation_global_map[j + w*i], 0, 255);
+        SDL_SetRenderDrawColor(m_pt_renderer, (int) fire_global_map[j + w*i], (int) vegetation_global_map[j + w*i], 0, 255);
         SDL_RenderDrawPoint(m_pt_renderer, j, h-i-1); 
       }
     SDL_RenderPresent(m_pt_renderer);

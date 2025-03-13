@@ -29,7 +29,7 @@ ax1.plot(df['ENV_VALUE'], df['ENV_VALUE'],
 ax1.set_title('Speedup - Global Time')
 ax1.set_xlabel('Number of Threads')
 ax1.set_ylabel('Speedup')
-ax1.set_ylim(1,1.5)
+#ax1.set_ylim(1,1.5)
 ax1.legend()
 ax1.grid(True)
 
