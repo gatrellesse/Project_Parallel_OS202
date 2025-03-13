@@ -41,7 +41,7 @@ ax2.plot(df['ENV_VALUE'], df['ENV_VALUE'],
 ax2.set_title('Speedup - Update Time')
 ax2.set_xlabel('Number of Threads')
 ax2.set_ylabel('Speedup')
-ax2.set_ylim(1,2)
+ax2.set_ylim(1,3)
 ax2.legend()
 ax2.grid(True)
 

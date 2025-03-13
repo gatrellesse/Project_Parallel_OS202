@@ -8,6 +8,7 @@
 #include <string>
 #include <algorithm>
 #include <omp.h>
+#include <iomanip>
 
 #include "model.hpp"
 #include "display.hpp"
@@ -205,9 +206,9 @@ void display_params(ParamsType const& params)
               << "\tNombre de cellules par direction : " << params.discretization << std::endl 
               << "\tVecteur vitesse : [" << params.wind[0] << ", " << params.wind[1] << "]" << std::endl
               << "\tPosition initiale du foyer (col, ligne) : " << params.start.column << ", " << params.start.row << std::endl;
-}
+schedule(dynamic, 64)}
 
-int main( int nargs, char* args[] )
+schedule(dynamic, 64)int main( int nargs, char* args[] )
 {
     auto params = parse_arguments(nargs-1, &args[1]);
     //display_params(params);
@@ -218,12 +219,13 @@ int main( int nargs, char* args[] )
                        params.start);
 
     float time_update = 0;
+    float time_for = 0;
     double time_affichage = 0;
     int n_iterations = 0;
 
     SDL_Event event;
     double global_start = omp_get_wtime();
-    while (simu.update(&time_update))
+    while (simu.update(&time_update, &time_for))
     {
         n_iterations++;  
         //std::size_t m_time_step = simu.time_step();
@@ -250,8 +252,10 @@ int main( int nargs, char* args[] )
     std::cout << "n_iterations " << n_iterations << std::endl;
     //std::cout << "time_update " << time_update << std::endl;
     //std::cout << "time_affichage " << time_affichage << std::endl;
-    std::cout << "avg_time_update " << time_update / n_iterations << std::endl;
-    std::cout << "avg_time_affichage " << time_affichage / n_iterations << std::endl;
+    std::cout << std::fixed;
+    std::cout << std::setprecision(10) << "avg_time_update " << time_update / n_iterations << std::endl;
+    std::cout << std::setprecision(10) << "avg_time_for " << time_for / n_iterations << std::endl;
+    std::cout << std::setprecision(10) << "avg_time_affichage " << time_affichage / n_iterations << std::endl;
     SDL_Quit();
     return EXIT_SUCCESS;
 }

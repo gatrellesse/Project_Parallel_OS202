@@ -29,7 +29,8 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
         m_wind_speed(std::sqrt(t_wind[0]*t_wind[0] + t_wind[1]*t_wind[1])),
         m_max_wind(t_max_wind),
         m_vegetation_map(t_discretization*t_discretization, 255u),
-        m_fire_map(t_discretization*t_discretization, 0u)
+        m_fire_map(t_discretization*t_discretization, 0u),
+        m_fire_front(t_discretization*t_discretization, 0u)
         //m_time_step(0)
 {
     if (t_discretization == 0)
@@ -75,121 +76,110 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
 }
 // --------------------------------------------------------------------------------------------------------------------
 bool 
-Model::update(float * time_update)
+Model::update(float * time_update, float * time_for)
 {
     double start = omp_get_wtime();
-    auto next_front = m_fire_front;
-    std::vector<std::size_t> m_fire_front_vector; 
-    for (auto f : m_fire_front) m_fire_front_vector.push_back(f.first);
-
+    std::vector<std::uint8_t> next_front = m_fire_front;
     std::vector<std::size_t> global_ignite;
 
     #pragma omp parallel
     {
         std::vector<std::size_t> local_ignite;
 
-        #pragma omp for nowait
-        for (auto it = m_fire_front_vector.begin(); it != m_fire_front_vector.end(); it++)
-        {
-            LexicoIndices coord = get_lexicographic_from_index(*it);
-            double power = log_factor(m_fire_front[*it]);
+        #pragma omp for
+        for (std::size_t i = 0; i < m_fire_front.size(); ++i) {
+            if (m_fire_front[i] == 0) continue;
+
+            LexicoIndices coord = get_lexicographic_from_index(i);
+            double power = log_factor(m_fire_front[i]);
 
             // Verificação dos vizinhos e coleta em local_ignite
             if (coord.row < m_geometry-1)
             {
-                double tirage      = pseudo_random( *it + m_time_step, m_time_step );
-                double green_power = m_vegetation_map[*it + m_geometry];
+                double tirage      = pseudo_random( i + m_time_step, m_time_step );
+                double green_power = m_vegetation_map[i + m_geometry];
                 double correction  = power * log_factor(green_power);
                 if (tirage < alphaSouthNorth * p1 * correction)
                 {
-                    local_ignite.push_back(*it + m_geometry);
+                    local_ignite.push_back(i + m_geometry);
                 }
             }
 
             if (coord.row > 0)
             {
-                double tirage      = pseudo_random( *it * 13427 + m_time_step, m_time_step );
-                double green_power = m_vegetation_map[*it - m_geometry];
+                double tirage      = pseudo_random( i * 13427 + m_time_step, m_time_step );
+                double green_power = m_vegetation_map[i - m_geometry];
                 double correction  = power * log_factor(green_power);
                 if (tirage < alphaNorthSouth * p1 * correction)
                 {
-                    local_ignite.push_back(*it - m_geometry);
+                    local_ignite.push_back(i - m_geometry);
                 }
             }
 
             if (coord.column < m_geometry-1)
             {
-                double tirage      = pseudo_random( *it * 13427 * 13427 + m_time_step, m_time_step );
-                double green_power = m_vegetation_map[*it + 1];
+                double tirage      = pseudo_random( i * 13427 * 13427 + m_time_step, m_time_step );
+                double green_power = m_vegetation_map[i + 1];
                 double correction  = power * log_factor(green_power);
                 if (tirage < alphaEastWest * p1 * correction)
                 {
-                    local_ignite.push_back(*it + 1);
+                    local_ignite.push_back(i + 1);
                 }
             }
 
             if (coord.column > 0)
             {
-                double tirage      = pseudo_random( *it * 13427 * 13427 * 13427 + m_time_step, m_time_step );
-                double green_power = m_vegetation_map[*it - 1];
+                double tirage      = pseudo_random( i * 13427 * 13427 * 13427 + m_time_step, m_time_step );
+                double green_power = m_vegetation_map[i - 1];
                 double correction  = power * log_factor(green_power);
                 if (tirage < alphaWestEast * p1 * correction)
                 {
-                    local_ignite.push_back(*it - 1);
+                    local_ignite.push_back(i - 1);
                 }
             }
 
             // Processamento seguro do estado atual da célula
-            if (m_fire_front[*it] == 255)
+            if (m_fire_front[i] == 255)
             {
-                double tirage = pseudo_random( *it * 52513 + m_time_step, m_time_step );
+                double tirage = pseudo_random( i * 52513 + m_time_step, m_time_step );
                 if (tirage < p2)
                 {
-                    m_fire_map[*it] >>= 1;
-                    #pragma omp critical
-                    {
-                        next_front[*it] >>= 1;
-                    }
+                    m_fire_map[i] >>= 1;
+                    next_front[i] >>= 1;
                 }
             }
             else
             {
-                m_fire_map[*it] >>= 1;
-                #pragma omp critical
-                {
-                    auto& val = next_front[*it];
-                    val >>= 1;
-                    if (val == 0)
-                    {
-                        next_front.erase(*it);
-                    }
-                }
+                m_fire_map[i] >>= 1;
+                next_front[i] >>= 1; 
             }
         }
 
         // Combinação segura das listas locais
         #pragma omp critical
-        {
-            global_ignite.insert(global_ignite.end(), local_ignite.begin(), local_ignite.end());
+        global_ignite.insert(global_ignite.end(), local_ignite.begin(), local_ignite.end());
+    }
+    //*time_update += (omp_get_wtime() - start);
+    double for_start = omp_get_wtime();
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < global_ignite.size(); ++i) {
+        m_fire_map[global_ignite[i]] = 255;
+        next_front[global_ignite[i]] = 255;
+    }
+    m_keys_by_step.push_back(m_fire_front);
+    m_fire_front.swap(next_front);
+    bool empty = true;
+    #pragma omp parallel for
+    for (std::size_t i = 0; i < m_fire_front.size(); ++i) {
+        if (m_fire_front[i] > 0) { 
+            empty = false;
+            if(m_vegetation_map[i] > 0) m_vegetation_map[i] -= 1;
         }
     }
-    *time_update += (omp_get_wtime() - start);
-    // Atualização sequencial das células vizinhas inflamadas
-    for (auto idx : global_ignite)
-    {
-        m_fire_map[idx] = 255;
-        next_front[idx] = 255;
-    }
-
-    m_keys_by_step.push_back(m_fire_front_vector);
-    m_fire_front = next_front;
-    for (auto f : m_fire_front)
-    {
-        if (m_vegetation_map[f.first] > 0)
-            m_vegetation_map[f.first] -= 1;
-    }
     m_time_step += 1;
-    return !m_fire_front.empty();
+    *time_for += (omp_get_wtime() - for_start);
+    *time_update += (omp_get_wtime() - start);
+    return !empty;
 }
 // ====================================================================================================================
 std::size_t   
