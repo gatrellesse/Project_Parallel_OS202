@@ -77,6 +77,7 @@ bool
 Model::update()
 {
     auto next_front = m_fire_front;
+    std::vector<std::size_t> new_fires;
     for (auto f : m_fire_front)
     {
         // Récupération de la coordonnée lexicographique de la case en feu :
@@ -93,8 +94,9 @@ Model::update()
             double correction  = power*log_factor(green_power);
             if (tirage < alphaSouthNorth*p1*correction)
             {
-                m_fire_map[f.first + m_geometry]   = 255.;
-                next_front[f.first + m_geometry] = 255.;
+                //m_fire_map[f.first + m_geometry]   = 255.;
+                //next_front[f.first + m_geometry] = 255.;
+                new_fires.push_back(f.first + m_geometry);
             }
         }
 
@@ -105,8 +107,9 @@ Model::update()
             double correction  = power*log_factor(green_power);
             if (tirage < alphaNorthSouth*p1*correction)
             {
-                m_fire_map[f.first - m_geometry] = 255.;
-                next_front[f.first - m_geometry] = 255.;
+                //m_fire_map[f.first - m_geometry] = 255.;
+                //next_front[f.first - m_geometry] = 255.;
+                new_fires.push_back(f.first - m_geometry);
             }
         }
 
@@ -117,8 +120,9 @@ Model::update()
             double correction  = power*log_factor(green_power);
             if (tirage < alphaEastWest*p1*correction)
             {
-                m_fire_map[f.first + 1] = 255.;
-                next_front[f.first + 1] = 255.;
+                //m_fire_map[f.first + 1] = 255.;
+                //next_front[f.first + 1] = 255.;
+                new_fires.push_back(f.first + 1);
             }
         }
 
@@ -129,8 +133,9 @@ Model::update()
             double correction  = power*log_factor(green_power);
             if (tirage < alphaWestEast*p1*correction)
             {
-                m_fire_map[f.first - 1] = 255.;
-                next_front[f.first - 1] = 255.;
+                //m_fire_map[f.first - 1] = 255.;
+                //next_front[f.first - 1] = 255.;
+                new_fires.push_back(f.first - 1);
             }
         }
         // Si le feu est à son max,
@@ -153,8 +158,11 @@ Model::update()
                 next_front.erase(f.first);
             }
         }
-
     }    
+    for (auto f : new_fires) {
+        m_fire_map[f] = 255.;
+        next_front[f] = 255.;
+    }
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     std::vector<std::uint8_t> keys_by_position(m_fire_map.size());
     for (auto f : m_fire_front) keys_by_position[f.first] = f.second;

@@ -225,7 +225,7 @@ int main( int nargs, char* args[] )
             break;
     }
     std::ofstream out_file;
-    out_file.open("example-v"+params.version+".txt");
+    out_file.open("example-"+params.version+".txt");
     for( auto keys : simu.keys_by_step()) {
         for( auto element : keys ) out_file << " " << (int) element ;
         out_file << std::endl;
