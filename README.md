@@ -3,7 +3,9 @@
 #Étudiants
 
 Gabriel BAPTISTA TRELLESSE
+
 Guilherme GELMI SALVO
+
 Rian RADECK SANTOS COSTA
 
 ## Première étape
