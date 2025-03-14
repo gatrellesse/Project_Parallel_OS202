@@ -1,5 +1,11 @@
 # Project_Parallel_OS202
 
+#Étudiants
+
+Gabriel BAPTISTA TRELLESSE
+Guilherme GELMI SALVO
+Rian RADECK SANTOS COSTA
+
 ## Première étape
 
 Lien vers le source: https://github.com/gatrellesse/Project_Parallel_OS202/tree/premiere
