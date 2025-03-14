@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <iomanip>
 
 #include "display.hpp"
 #include "model.hpp"
@@ -196,7 +197,7 @@ void display_params(ParamsType const& params) {
 
 int main(int nargs, char* args[]) {
     auto params = parse_arguments(nargs - 1, &args[1]);
-    display_params(params);
+    //display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
     int rank, world;
@@ -232,8 +233,9 @@ int main(int nargs, char* args[]) {
     int unit_size = simu_size / comp_size;
     size_t start = unit_size * comp_rank;
     size_t end = std::min(start + unit_size, simu_size);
-
+    int n_iterations = 0;
     while (isRunning) {
+        n_iterations++;
         if (rank != 0) {
             auto start_time = std::chrono::high_resolution_clock::now();
             isRunning = simu.update(computing_comm);
@@ -255,11 +257,11 @@ int main(int nargs, char* args[]) {
 
             MPI_Recv(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-            if ((simu.time_step() & 31) == 0) {
-                std::cout << "Time step " << simu.time_step()
-                          << "\n===============" << std::endl;
-                std::cout.flush();
-            }
+            //if ((simu.time_step() & 31) == 0) {
+            //    std::cout << "Time step " << simu.time_step()
+            //              << "\n===============" << std::endl;
+            //    std::cout.flush();
+            //}
 
             // std::this_thread::sleep_for(0.1s);
         }
@@ -298,19 +300,22 @@ int main(int nargs, char* args[]) {
             break;
         }
     }
-    if (rank != 1) {
-        std::cout << "Average update time: " << avg_update_time / simu.time_step() / 1000 << " ms" << std::endl;
+    std::cout << std::fixed;
+    if (rank == 1) {
+        std::cout << std::setprecision(10) << "avg_time_update " << avg_update_time / simu.time_step() / 1000000 << std::endl;
+        std::cout << "n_iterations " << n_iterations << std::endl;
     }
     if (rank == 0) {
-        std::cout << "Average display time: " << avg_display_time / frame_count / 1000 << " ms" << std::endl;
+        std::cout << std::setprecision(10) << "avg_time_affichage " << avg_display_time / frame_count / 1000000 << std::endl;
     }
 
     std::cout << "Simulation finished " << rank << std::endl;
     auto simulation_end = std::chrono::high_resolution_clock::now();
     auto simulation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(simulation_end - simulation_start).count();
     if (rank == 1)
-        std::cout << "Simulation time (n = " << params.discretization << "): " << simulation_duration << " ms" << std::endl;
+        std::cout << "global_time " << simulation_duration/1000 << std::endl;
 
     MPI_Finalize();
+    if (rank == 0) SDL_Quit();
     return EXIT_SUCCESS;
 }
