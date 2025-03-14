@@ -4,9 +4,9 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
-#include <cstring>
 
 namespace {
     double pseudo_random(std::size_t index, std::size_t time_step) {
@@ -82,7 +82,6 @@ bool Model::update(MPI_Comm computing_comm) {
     size_t start = unit_size * rank;
     size_t end = std::min(start + unit_size, total_size);
     size_t row_sz = m_geometry;
-    // std::cout << "Rank " << rank << " start " << start << " end " << end << std::endl;
 
     std::uint8_t *next_front;
     next_front = new std::uint8_t[m_geometry * m_geometry];
@@ -98,9 +97,6 @@ bool Model::update(MPI_Comm computing_comm) {
 
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(i);
-        // if(coord.row > 100 || coord.column > 100)
-        //     std::cout << coord.row << " " << coord.column << std::endl;
-        // Et de la puissance du foyer
         double power = log_factor(m_fire_front[i]);
 
         // On va tester les cases voisines pour contamination par le feu :
@@ -111,9 +107,6 @@ bool Model::update(MPI_Comm computing_comm) {
             if (tirage < alphaSouthNorth * p1 * correction) {
                 m_fire_map[i + m_geometry] = 255.;
                 next_front[i + m_geometry] = 255;
-                // if(rank == 1 && i > 30000){
-                //     std::cout << "Fire front " << rank << " " << coord.row << " " << coord.column << std::endl;
-                // }
             }
         }
 
@@ -124,9 +117,6 @@ bool Model::update(MPI_Comm computing_comm) {
             if (tirage < alphaNorthSouth * p1 * correction) {
                 m_fire_map[i - m_geometry] = 255.;
                 next_front[i - m_geometry] = 255;
-                // if(rank == 1){
-                //     std::cout << "Fire front " << rank << " " << coord.row << " " << coord.column << std::endl;
-                // }
             }
         }
 
@@ -137,9 +127,6 @@ bool Model::update(MPI_Comm computing_comm) {
             if (tirage < alphaEastWest * p1 * correction) {
                 m_fire_map[i + 1] = 255.;
                 next_front[i + 1] = 255;
-                // if(rank == 1){
-                //     std::cout << "Fire front " << rank << " " << coord.row << " " << coord.column << std::endl;
-                // }
             }
         }
 
@@ -150,9 +137,6 @@ bool Model::update(MPI_Comm computing_comm) {
             if (tirage < alphaWestEast * p1 * correction) {
                 m_fire_map[i - 1] = 255.;
                 next_front[i - 1] = 255;
-                // if(rank == 1){
-                //     std::cout << "Fire front " << rank << " " << coord.row << " " << coord.column << std::endl;
-                // }
             }
         }
         // Si le feu est à son max,
@@ -175,20 +159,16 @@ bool Model::update(MPI_Comm computing_comm) {
         simulation_cells += (m_fire_front[i] != 0);
     }
     if (rank < size - 1)
-        for (size_t i = end; i < end + row_sz; i++) 
+        for (size_t i = end; i < end + row_sz; i++)
             m_fire_front[i] = next_front[i];
-        
+
     if (rank > 0)
         for (size_t i = start - row_sz; i < start; i++)
             m_fire_front[i] = next_front[i];
-        
 
-    
     for (size_t i = start; i < end; i++) {
-        // std::cout << "Fire front " << rank << " " << f.first << " " << (int)f.second << std::endl;
-        if (m_fire_front[i] == 0) {
+        if (m_fire_front[i] == 0)
             continue;
-        }
 
         if (m_vegetation_map[i] > 0)
             m_vegetation_map[i] -= 1;
@@ -198,7 +178,7 @@ bool Model::update(MPI_Comm computing_comm) {
     if (rank < size - 1) {
         MPI_Send(m_fire_front + end, row_sz, MPI_UINT8_T, rank + 1, 12, computing_comm);
         // MPI_Send(m_vegetation_map.data() + end - row_sz, row_sz, MPI_UINT8_T, rank + 1, 13, computing_comm);
-        
+
         std::uint8_t *recv_buf = new std::uint8_t[row_sz];
         MPI_Recv(recv_buf, row_sz, MPI_UINT8_T, rank + 1, 10, computing_comm, MPI_STATUS_IGNORE);
         for (size_t i = 0; i < row_sz; i++) {
@@ -207,10 +187,10 @@ bool Model::update(MPI_Comm computing_comm) {
         // MPI_Recv(m_vegetation_map.data() + end, row_sz, MPI_UINT8_T, rank + 1, 11, computing_comm, MPI_STATUS_IGNORE);
     }
 
-    if(rank > 0) {
+    if (rank > 0) {
         MPI_Send(m_fire_front + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 10, computing_comm);
         // MPI_Send(m_vegetation_map.data() + start, row_sz, MPI_UINT8_T, rank - 1, 11, computing_comm);
-        
+
         std::uint8_t *recv_buf = new std::uint8_t[row_sz];
         MPI_Recv(recv_buf, row_sz, MPI_UINT8_T, rank - 1, 12, computing_comm, MPI_STATUS_IGNORE);
         for (size_t i = 0; i < row_sz; i++) {
@@ -218,7 +198,7 @@ bool Model::update(MPI_Comm computing_comm) {
         }
         // MPI_Recv(m_vegetation_map.data() + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 13, computing_comm, MPI_STATUS_IGNORE);
     }
-    
+
     return simulation_cells > 0;
 }
 // ====================================================================================================================

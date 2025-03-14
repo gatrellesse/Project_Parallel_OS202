@@ -214,15 +214,7 @@ int main(int nargs, char* args[]) {
                                              params.discretization);
     }
 
-    // auto displayer = Displayer::init_instance( params.discretization,
-    // params.discretization );
-
-    // if (rank == 1) {
-    //     simu = Model(params.length, params.discretization, params.wind, params.start);
-    // }
-    MPI_Request is_running_request, fire_map_request, vegetal_map_request;
     int32_t isRunning = 1;
-    
     SDL_Event event;
     auto simulation_start = std::chrono::high_resolution_clock::now();
     double avg_update_time = 0.;
@@ -236,25 +228,15 @@ int main(int nargs, char* args[]) {
     int comp_rank, comp_size;
     MPI_Comm_rank(computing_comm, &comp_rank);
     MPI_Comm_size(computing_comm, &comp_size);
-    
+
     int unit_size = simu_size / comp_size;
     size_t start = unit_size * comp_rank;
-    size_t row_sz = params.discretization;
     size_t end = std::min(start + unit_size, simu_size);
-    
-    // if (rank != 0) {
-    //     MPI_Isend(simu.fire_map().data() + start, end - start + 1, MPI_UINT8_T, 0, 101 * rank, MPI_COMM_WORLD, &fire_map_request);
-    //     MPI_Isend(simu.vegetal_map().data() + start, end - start + 1, MPI_UINT8_T, 0, 102 * rank, MPI_COMM_WORLD, &vegetal_map_request);
-    //     std::cout << "Rank " << rank << " sent first maps, tags = " << 101 * rank << " " << 102 * rank << std::endl;
-    // }
-
 
     while (isRunning) {
         if (rank != 0) {
             auto start_time = std::chrono::high_resolution_clock::now();
             isRunning = simu.update(computing_comm);
-
-            // isRunning = simu.simulation_cells > 0;
             auto end_time = std::chrono::high_resolution_clock::now();
             avg_update_time += std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
 
@@ -264,75 +246,59 @@ int main(int nargs, char* args[]) {
             //                  .count()
             //           << " ms" << std::endl;
 
-            // std::cout << isRunning << " " << map_sz << std::endl;
-        
-            // int is_running_received, is_fire_map_received, is_vegetal_map_received;
-            // // MPI_Test(&is_running_request, &is_running_received, MPI_STATUS_IGNORE);
-            // MPI_Test(&fire_map_request, &is_fire_map_received, MPI_STATUS_IGNORE);
-            // MPI_Test(&vegetal_map_request, &is_vegetal_map_received, MPI_STATUS_IGNORE);
+            MPI_Send(&isRunning, 1, MPI_INT32_T, 0, 100 * rank, MPI_COMM_WORLD);
+            std::vector<uint8_t> fire_map(simu.fire_map());
+            MPI_Send(fire_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 101 * rank, MPI_COMM_WORLD);
 
-            // if (is_running_received)
-                MPI_Send(&isRunning, 1, MPI_INT32_T, 0, 100 * rank, MPI_COMM_WORLD);
-            // if (is_fire_map_received){
-                std::vector<uint8_t> fire_map(simu.fire_map());
-                MPI_Send(fire_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 101 * rank, MPI_COMM_WORLD);
-            // }
-            // if (is_vegetal_map_received){
-                std::vector<uint8_t> vegetal_map(simu.vegetal_map());
-                MPI_Send(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 102 * rank, MPI_COMM_WORLD);
-            // }
+            std::vector<uint8_t> vegetal_map(simu.vegetal_map());
+            MPI_Send(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 102 * rank, MPI_COMM_WORLD);
 
             MPI_Recv(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             if ((simu.time_step() & 31) == 0) {
                 std::cout << "Time step " << simu.time_step()
-                            << "\n===============" << std::endl;
+                          << "\n===============" << std::endl;
                 std::cout.flush();
             }
 
-            // std::this_thread::sleep_for(1s);
+            // std::this_thread::sleep_for(0.1s);
         }
 
         if (rank == 0) {
             std::vector<uint8_t> fire_map(map_sz), vegetal_map(map_sz);
             int actually_running = 0;
-            for(int i = 1; i < world; i++){
+            for (int i = 1; i < world; i++) {
                 MPI_Recv(&isRunning, 1, MPI_INT32_T, i, 100 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 actually_running |= isRunning;
-                // std::cout << "Received isRunning : " << isRunning << std::endl;
-                // if (!isRunning) break;
                 int comp_rank = i - 1, comp_size = world - 1;
-                
+
                 int unit_size = simu_size / comp_size;
                 size_t start = unit_size * comp_rank;
-                size_t row_sz = params.discretization;
                 size_t end = std::min(start + unit_size, simu_size);
 
-                // std::cout << "Waiting for maps from " << i << " tags " << 101 * i << " " << 102 * i << std::endl;
                 MPI_Recv(fire_map.data() + start, end - start + 1, MPI_UINT8_T, i, 101 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                // std::cout << i << " Received fire_map (" << start << ", " << end << ")" << std::endl;
                 MPI_Recv(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, i, 102 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                // std::cout << i << " Received vegetal_map (" << start << ", " << end << ")" << std::endl;
             }
             isRunning = actually_running;
             for (int i = 1; i < world; i++) {
                 MPI_Send(&actually_running, 1, MPI_INT32_T, i, 0, MPI_COMM_WORLD);
             }
-            
 
-            // std::cout << "Updating" << std::endl;
             auto start_time = std::chrono::high_resolution_clock::now();
             displayer->update(vegetal_map, fire_map);
             frame_count++;
             auto end_time = std::chrono::high_resolution_clock::now();
             avg_display_time += std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-            // std::cout << "Finished updating" << std::endl;
-            // displayer->update(simu.vegetal_map(), simu.fire_map());
-            // std::this_thread::sleep_for(0.1s);
         }
-        if (SDL_PollEvent(&event) && event.type == SDL_QUIT) break;
+        if (SDL_PollEvent(&event) && event.type == SDL_QUIT) {
+            isRunning = 0;
+            for (int i = 1; i < world; i++) {
+                MPI_Send(&isRunning, 1, MPI_INT32_T, i, 0, MPI_COMM_WORLD);
+            }
+            break;
+        }
     }
-    if (rank == 1) {
+    if (rank != 1) {
         std::cout << "Average update time: " << avg_update_time / simu.time_step() / 1000 << " ms" << std::endl;
     }
     if (rank == 0) {

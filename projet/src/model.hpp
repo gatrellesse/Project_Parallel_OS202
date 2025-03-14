@@ -1,4 +1,3 @@
-#pragma once
 #include <mpi.h>
 
 #include <array>
@@ -33,11 +32,6 @@ public:
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
     std::size_t time_step() const { return m_time_step; }
     std::uint8_t* fire_front() const { return m_fire_front; }
-    void set_fire_front(std::uint8_t* t_fire_front) { 
-        for (int i = 0; i < m_geometry * m_geometry; i++) {
-            m_fire_front[i] = t_fire_front[i];
-        }
-    }
 
     void reset_time_step() { m_time_step = 0; }
 
@@ -45,9 +39,8 @@ public:
 
     std::size_t get_index_from_lexicographic_indices(LexicoIndices t_lexico_indices) const;
     LexicoIndices get_lexicographic_from_index(std::size_t t_global_index) const;
-    std::uint8_t* m_fire_front;
-private:
 
+private:
     double m_length;                       // Taille du carré représentant le terrain (en km)
     double m_distance;                     // Taille d'une case du terrain modélisé
     std::size_t m_time_step;               // Dernier numéro du pas de temps calculé
@@ -59,5 +52,5 @@ private:
     double p1{0.}, p2{0.};
     double alphaEastWest, alphaWestEast, alphaSouthNorth, alphaNorthSouth;
 
-    // std::vector<std::pair<std::size_t, std::uint8_t>> m_fire_front;
+    std::uint8_t* m_fire_front;
 };
