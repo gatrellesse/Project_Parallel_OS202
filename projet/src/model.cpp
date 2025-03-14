@@ -23,6 +23,7 @@ Model::Model( double t_length, unsigned t_discretization, std::array<double,2> t
               LexicoIndices t_start_fire_position, double t_max_wind )
     :   m_length(t_length),
         m_distance(-1),
+        m_time_step(0),
         m_geometry(t_discretization),
         m_wind(t_wind),
         m_wind_speed(std::sqrt(t_wind[0]*t_wind[0] + t_wind[1]*t_wind[1])),
@@ -155,6 +156,9 @@ Model::update()
 
     }    
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
+    std::vector<std::uint8_t> keys_by_position(m_fire_map.size());
+    for (auto f : m_fire_front) keys_by_position[f.first] = f.second;
+    m_keys_by_step.push_back(keys_by_position);
     m_fire_front = next_front;
     for (auto f : m_fire_front)
     {

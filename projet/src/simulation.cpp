@@ -3,7 +3,8 @@
 #include <cassert>
 #include <iostream>
 #include <thread>
-#include <chrono>
+#include <fstream>
+#include <string>
 
 #include "model.hpp"
 #include "display.hpp"
@@ -17,12 +18,23 @@ struct ParamsType
     unsigned discretization{20u};
     std::array<double,2> wind{0.,0.};
     Model::LexicoIndices start{10u,10u};
+    std::string version{"1"};
 };
 
 void analyze_arg( int nargs, char* args[], ParamsType& params )
 {
     if (nargs ==0) return;
     std::string key(args[0]);
+    if (key == "-v"s) {
+        if (nargs < 2)
+        {
+            std::cerr << "Manque une valeur pour la version du code !" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        params.version.assign(args[1]);
+        analyze_arg(nargs-2, &args[2], params);
+        return;
+    }
     if (key == "-l"s)
     {
         if (nargs < 2)
@@ -202,14 +214,21 @@ int main( int nargs, char* args[] )
     auto simu = Model( params.length, params.discretization, params.wind,
                        params.start);
     SDL_Event event;
-    while (simu.update())
+    bool isRunning = true;
+    while (isRunning)
     {
+        isRunning = simu.update();
         if ((simu.time_step() & 31) == 0) 
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
         displayer->update( simu.vegetal_map(), simu.fire_map() );
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+    }
+    std::ofstream out_file;
+    out_file.open("example-v"+params.version+".txt");
+    for( auto keys : simu.keys_by_step()) {
+        for( auto element : keys ) out_file << " " << (int) element ;
+        out_file << std::endl;
     }
     return EXIT_SUCCESS;
 }
