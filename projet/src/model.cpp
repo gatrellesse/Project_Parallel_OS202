@@ -1,10 +1,11 @@
 #include "model.hpp"
 
+#include <mpi.h>
+
 #include <chrono>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#include <mpi.h>
 
 namespace {
     double pseudo_random(std::size_t index, std::size_t time_step) {
@@ -64,30 +65,25 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-bool Model::update() {
+bool Model::update(MPI_Comm computing_comm) {
+    int rank, size;
+    MPI_Comm_rank(computing_comm, &rank);
+    MPI_Comm_size(computing_comm, &size);
+   
+    int calc_units = size;
+    int total_size = m_geometry * m_geometry;
+    int unit_size = total_size / calc_units;
+    int start = unit_size * rank;
+    int end = std::min(start + unit_size, total_size);
 
-
-    int world_rank, world_size;
-    MPI_Group local_group, world_group;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    int *ranks;
-    ranks = new int[world_size - 1];
-    for (int i = 0; i < world_size - 1; i++) {
-        ranks[i] = i + 1;
-    }
-    
-    MPI_Group_incl(world_group, world_size - 1, ranks, &local_group);
-    MPI_Comm local_comm;
-    MPI_Comm_create_group(MPI_COMM_WORLD, local_group, 0, &local_comm);
-
-    // if (rank == 2){
-    //     std::cout << "Hello from rank 2" << std::endl;
-    // }
 
     auto next_front = m_fire_front;
     for (auto f : m_fire_front) {
+        if (f.first < start || f.first >= end) {
+            continue;
+        }
+        // std::cout << "Rank " << rank << " calculating " << f.first << " " << f.second << std::endl;
+
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
         // Et de la puissance du foyer
@@ -151,7 +147,9 @@ bool Model::update() {
     }
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
+    
     for (auto f : m_fire_front) {
+        // std::cout << "Fire front " << rank << " " << f.first << " " << (int)f.second << std::endl;
         if (m_vegetation_map[f.first] > 0)
             m_vegetation_map[f.first] -= 1;
     }

@@ -216,13 +216,13 @@ int main(int nargs, char* args[]) {
     // auto displayer = Displayer::init_instance( params.discretization,
     // params.discretization );
 
-    // if (rank != 0) {
+    // if (rank == 1) {
     //     simu = Model(params.length, params.discretization, params.wind, params.start);
     // }
     MPI_Request is_running_request, fire_map_request, vegetal_map_request;
     int32_t isRunning = 1;
 
-    if (rank != 0) {
+    if (rank == 1) {
         MPI_Isend(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, &is_running_request);
         MPI_Isend(simu.fire_map().data(), map_sz, MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &fire_map_request);
         MPI_Isend(simu.vegetal_map().data(), map_sz, MPI_UINT8_T, 0, 2, MPI_COMM_WORLD, &vegetal_map_request);
@@ -234,10 +234,88 @@ int main(int nargs, char* args[]) {
     double avg_display_time = 0.;
     int frame_count = 0;
 
+    // MPI_Group computing_group;
+    MPI_Comm computing_comm;
+    MPI_Comm_split(MPI_COMM_WORLD, rank != 0, rank, &computing_comm);
+
+    int row_rank, row_size;
+    MPI_Comm_rank(computing_comm, &row_rank);
+    MPI_Comm_size(computing_comm, &row_size);
+
+    for (auto [k, v] : simu.fire_front()) {
+        std::cout << k << " " << v << std::endl;
+    }
+
+    // MPI_Comm_free(&computing_comm);
+    // std::this_thread::sleep_for(1s);
+
     while (isRunning) {
         if (rank != 0) {
             auto start_time = std::chrono::high_resolution_clock::now();
-            isRunning = simu.update();
+            // atualizar fantasmas
+            simu.update(computing_comm);
+            MPI_Request sync;
+            if (rank != 1){
+                int front_size = simu.fire_front().size();
+                // std::cout << "Rank " << rank << " sending " << front_size << std::endl;
+                MPI_Send(&front_size, 1, MPI_INT32_T, 1, 12, MPI_COMM_WORLD);
+                std::vector<std::int32_t> front(front_size * 2);
+                for (int i = 0, j = 0; i < front_size; i++, j += 2) {
+                    front[j] = simu.fire_front()[i].first;
+                    front[j + 1] = (int)simu.fire_front()[i].second;
+                }
+                MPI_Send(front.data(), front_size * 2, MPI_INT32_T, 1, 13, MPI_COMM_WORLD);
+
+                // std::cout << "Rank " << rank << " waiting updated front" << std::endl;
+                int updated_front_size;
+                MPI_Recv(&updated_front_size, 1, MPI_INT32_T, 1, 12, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                std::vector<std::int32_t> fire_front(2 * updated_front_size);
+                MPI_Recv(fire_front.data(), updated_front_size * 2, MPI_INT32_T, 1, 13, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                
+                    // std::cout << rank << " received " << k << " " << v << std::endl;
+                // std::cout << "received ~" << rank << "~ " << fire_front[0] << " " << fire_front[2] << " " << fire_front[4] << " " << fire_front[6] << std::endl;
+                // std::cout << "Rank " << rank << " received " << fire_front.size() << std::endl;
+                simu.set_fire_front(fire_front);
+            } else {
+                for (int i = 2; i < world; i++) {
+                    int front_size;
+                    MPI_Recv(&front_size, 1, MPI_INT32_T, i, 12, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    std::vector<std::int32_t> fire_front(front_size * 2);
+                    MPI_Recv(fire_front.data(), front_size * 2, MPI_INT32_T, i, 13, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    // std::cout << "Received fire front from " << i << " of size " << front_size << std::endl;
+                    // std::cout << "received ~" << i << "~ " << fire_front[0] << " " << fire_front[2] << " " << fire_front[4] << " " << fire_front[6] << std::endl;
+                    // std::cout << "-------\n";
+                    simu.update_fire_front(fire_front);
+                    // for (auto [k, v] : simu.fire_front()) {
+                    //     std::cout << k << " " << v << std::endl;
+                    // }
+                }
+                int updated_front_size = simu.fire_front().size();
+                auto aux = simu.fire_front();
+                std::vector<std::int32_t> upd_front(updated_front_size * 2);
+                for (int i = 0, j = 0; i < updated_front_size; i++, j+= 2) {
+                    // std::cout << "mounting " << aux[i].first << " " << (int)aux[i].second << std::endl;
+                    upd_front[j] = aux[i].first;
+                    upd_front[j + 1] = (int)aux[i].second;
+                    // std::cout << "mounted " << upd_front[j] << " " << upd_front[j + 1] << std::endl;
+                }
+                
+                // std::cout << "sending upd ~" << rank << "~ " << upd_front[0] << " " << upd_front[2] << " " << upd_front[4] << " " << upd_front[6] << std::endl;
+                
+                for (int i = 2;i < world; i++) {
+                    MPI_Send(&updated_front_size, 1, MPI_INT32_T, i, 12, MPI_COMM_WORLD);
+                    MPI_Send(upd_front.data(), updated_front_size * 2, MPI_INT32_T, i, 13, MPI_COMM_WORLD);
+                    // std::cout << "Sent updated fire front to " << i << " of size " << updated_front_size << std::endl;
+                }
+            }
+
+            // std::cout << "Finished sync " << rank << " " << simu.fire_front().size() << std::endl;
+            // for (auto [k, v] : simu.fire_front()) {
+            //     std::cout << "~" << rank << "~ " << k << " " << v << std::endl;
+            // }
+            isRunning = simu.fire_front().size() > 0;
+
+
             auto end_time = std::chrono::high_resolution_clock::now();
             avg_update_time += std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
 
@@ -258,25 +336,29 @@ int main(int nargs, char* args[]) {
                 break;
             }
 
-            int is_running_received, is_fire_map_received, is_vegetal_map_received;
-            MPI_Test(&is_running_request, &is_running_received, MPI_STATUS_IGNORE);
-            MPI_Test(&fire_map_request, &is_fire_map_received, MPI_STATUS_IGNORE);
-            MPI_Test(&vegetal_map_request, &is_vegetal_map_received, MPI_STATUS_IGNORE);
+            if (rank == 1){
 
-            if (is_running_received)
+                int is_running_received, is_fire_map_received, is_vegetal_map_received;
+                MPI_Test(&is_running_request, &is_running_received, MPI_STATUS_IGNORE);
+                MPI_Test(&fire_map_request, &is_fire_map_received, MPI_STATUS_IGNORE);
+                MPI_Test(&vegetal_map_request, &is_vegetal_map_received, MPI_STATUS_IGNORE);
+                
+                if (is_running_received)
                 MPI_Isend(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, &is_running_request);
-            if (is_fire_map_received)
+                if (is_fire_map_received)
                 MPI_Isend(simu.fire_map().data(), map_sz, MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &fire_map_request);
-            if (is_vegetal_map_received)
+                if (is_vegetal_map_received)
                 MPI_Isend(simu.vegetal_map().data(), map_sz, MPI_UINT8_T, 0, 2, MPI_COMM_WORLD, &vegetal_map_request);
-
-            if ((simu.time_step() & 31) == 0) {
-                std::cout << "Time step " << simu.time_step()
-                          << "\n===============" << std::endl;
-                std::cout.flush();
+                
+                if ((simu.time_step() & 31) == 0) {
+                    std::cout << "Time step " << simu.time_step()
+                    << "\n===============" << std::endl;
+                    std::cout.flush();
+                }
+                
             }
-
-            // std::this_thread::sleep_for(0.1s);
+            
+            // std::this_thread::sleep_for(1s);
         }
 
         if (rank == 0) {
@@ -310,9 +392,10 @@ int main(int nargs, char* args[]) {
         }
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT) break;
     }
-    if (rank != 0) {
+    if (rank == 1) {
         std::cout << "Average update time: " << avg_update_time / simu.time_step() / 1000 << " ms" << std::endl;
-    } else {
+    } 
+    if (rank == 0) {
         std::cout << "Average display time: " << avg_display_time / frame_count / 1000 << " ms" << std::endl;
     }
 

@@ -3,6 +3,8 @@
 #include <array>
 #include <vector>
 #include <unordered_map>
+#include <mpi.h>
+#include <iostream>
 
 /**
  * @brief 
@@ -25,12 +27,38 @@ public:
     Model& operator = ( Model const & ) = delete;
     Model& operator = ( Model      && ) = delete;
 
-    bool update();
+    bool update(MPI_Comm computing_comm);
 
     unsigned geometry() const { return m_geometry; }
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
     std::size_t time_step() const { return m_time_step; }
+    std::vector<std::pair<std::size_t, std::uint32_t>> fire_front(bool debug = false) { 
+        std::vector<std::pair<std::size_t, std::uint32_t>> fire_front;
+        for (auto [k, v] : m_fire_front) {
+            if (debug) std::cout << "DEBUG " << k << " " << (int)v << std::endl;
+            fire_front.emplace_back((int)k, (int)v);
+        }
+        return fire_front;
+    }
+
+    void set_fire_front(std::vector<std::int32_t> const & t_fire_front) {
+        m_fire_front.clear();
+        for (int i = 0; i < t_fire_front.size(); i += 2) {
+            int k = t_fire_front[i];
+            int v = t_fire_front[i + 1];
+            if (v == 1) m_fire_front.erase(k);
+            else m_fire_front[k] = v;
+        }
+    }
+    void update_fire_front(std::vector<std::int32_t> const & t_fire_front) {
+        for (int i = 0; i < t_fire_front.size(); i += 2) {
+            int k = t_fire_front[i];
+            int v = t_fire_front[i + 1];
+            if (v == 1) m_fire_front.erase(k);
+            else m_fire_front[k] = v;
+        }
+    }
     void reset_time_step() { m_time_step = 0; }
 
 private:
