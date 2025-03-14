@@ -28,7 +28,7 @@ default:	help
 all: $(ALL)
 
 clean:
-	@rm -fr *.o *.exe *~
+	rm *.o && rm *.exe
 
 .cpp.o:
 	$(CXX) $(CXXFLAGS2) -c $^ -o $@	$(SDL2FLAGS)

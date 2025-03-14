@@ -1,31 +1,30 @@
 #pragma once
-#include <cstdint>
-#include <array>
-#include <vector>
-#include <unordered_map>
 #include <mpi.h>
+
+#include <array>
+#include <cstdint>
 #include <iostream>
+#include <unordered_map>
+#include <vector>
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
-class Model
-{
+class Model {
 public:
-    struct LexicoIndices
-    {
+    struct LexicoIndices {
         unsigned row, column;
     };
 
-    Model( double t_length, unsigned t_discretization, std::array<double,2> t_wind,
-           LexicoIndices t_start_fire_position, double t_max_wind = 60. );
-    Model( Model const & ) = delete;
-    Model( Model      && ) = delete;
+    Model(double t_length, unsigned t_discretization, std::array<double, 2> t_wind,
+          LexicoIndices t_start_fire_position, double t_max_wind = 60.);
+    Model(Model const&) = delete;
+    Model(Model&&) = delete;
     ~Model() = default;
 
-    Model& operator = ( Model const & ) = delete;
-    Model& operator = ( Model      && ) = delete;
+    Model& operator=(Model const&) = delete;
+    Model& operator=(Model&&) = delete;
 
     bool update(MPI_Comm computing_comm);
 
@@ -33,48 +32,32 @@ public:
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
     std::size_t time_step() const { return m_time_step; }
-    std::vector<std::pair<std::size_t, std::uint32_t>> fire_front(bool debug = false) { 
-        std::vector<std::pair<std::size_t, std::uint32_t>> fire_front;
-        for (auto [k, v] : m_fire_front) {
-            if (debug) std::cout << "DEBUG " << k << " " << (int)v << std::endl;
-            fire_front.emplace_back((int)k, (int)v);
+    std::uint8_t* fire_front() const { return m_fire_front; }
+    void set_fire_front(std::uint8_t* t_fire_front) { 
+        for (int i = 0; i < m_geometry * m_geometry; i++) {
+            m_fire_front[i] = t_fire_front[i];
         }
-        return fire_front;
     }
 
-    void set_fire_front(std::vector<std::int32_t> const & t_fire_front) {
-        m_fire_front.clear();
-        for (int i = 0; i < t_fire_front.size(); i += 2) {
-            int k = t_fire_front[i];
-            int v = t_fire_front[i + 1];
-            if (v == 1) m_fire_front.erase(k);
-            else m_fire_front[k] = v;
-        }
-    }
-    void update_fire_front(std::vector<std::int32_t> const & t_fire_front) {
-        for (int i = 0; i < t_fire_front.size(); i += 2) {
-            int k = t_fire_front[i];
-            int v = t_fire_front[i + 1];
-            if (v == 1) m_fire_front.erase(k);
-            else m_fire_front[k] = v;
-        }
-    }
     void reset_time_step() { m_time_step = 0; }
 
-private:
-    std::size_t   get_index_from_lexicographic_indices( LexicoIndices t_lexico_indices  ) const;
-    LexicoIndices get_lexicographic_from_index        ( std::size_t t_global_index ) const;
+    std::uint32_t simulation_cells = 0;
 
-    double m_length;                    // Taille du carré représentant le terrain (en km)
-    double m_distance;                  // Taille d'une case du terrain modélisé
-    std::size_t m_time_step;            // Dernier numéro du pas de temps calculé
-    unsigned m_geometry;                // Taille en nombre de cases de la carte 2D
-    std::array<double,2> m_wind{0.,0.}; // Vitesse et direction du vent suivant les axes x et y en km/h
-    double m_wind_speed;                // Norme euclidienne de la vitesse du vent
-    double m_max_wind; //+ Vitesse à partir de laquelle le feu ne peut pas se propager dans le sens opposé à celui du vent.
+    std::size_t get_index_from_lexicographic_indices(LexicoIndices t_lexico_indices) const;
+    LexicoIndices get_lexicographic_from_index(std::size_t t_global_index) const;
+    std::uint8_t* m_fire_front;
+private:
+
+    double m_length;                       // Taille du carré représentant le terrain (en km)
+    double m_distance;                     // Taille d'une case du terrain modélisé
+    std::size_t m_time_step;               // Dernier numéro du pas de temps calculé
+    unsigned m_geometry;                   // Taille en nombre de cases de la carte 2D
+    std::array<double, 2> m_wind{0., 0.};  // Vitesse et direction du vent suivant les axes x et y en km/h
+    double m_wind_speed;                   // Norme euclidienne de la vitesse du vent
+    double m_max_wind;                     //+ Vitesse à partir de laquelle le feu ne peut pas se propager dans le sens opposé à celui du vent.
     std::vector<std::uint8_t> m_vegetation_map, m_fire_map;
     double p1{0.}, p2{0.};
     double alphaEastWest, alphaWestEast, alphaSouthNorth, alphaNorthSouth;
 
-    std::unordered_map<std::size_t, std::uint8_t> m_fire_front;
+    // std::vector<std::pair<std::size_t, std::uint8_t>> m_fire_front;
 };
