@@ -4,7 +4,7 @@ CSV_FILE="results.csv"
 ENV_VEAR_NAME="OMP_NUM_THREADS"
 EXECUTABLE_PATH="./simulation.exe"
 ENV_VALUES=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16)
-N_RUNS=1 # Número de execuções para média
+N_RUNS=3 # Número de execuções para média
 
 # Cabeçalho do CSV
 echo "ENV_VALUE,n_iterations,avg_global_time,avg_time_update,avg_time_affichage,avg_time_for" > "$CSV_FILE"
@@ -19,7 +19,7 @@ for val in "${ENV_VALUES[@]}"; do
 
   for ((run=1; run<=N_RUNS; run++)); do
     # Executa o programa e captura a saída
-    full_output=$(export $ENV_VEAR_NAME=$val && mpiexec -np 2 --bind-to none $EXECUTABLE_PATH -n 100 -v $val)
+    full_output=$(export $ENV_VEAR_NAME=$val && mpiexec -np 2 --bind-to none $EXECUTABLE_PATH -n 20 v $val)
     echo "$full_output"
     # Extrai valores (usando awk para garantir números inteiros)
     curr_iter=$(echo "$full_output" | awk '/n_iterations/ {print $2}')

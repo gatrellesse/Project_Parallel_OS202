@@ -177,8 +177,10 @@ Model::update(float * time_update, float * time_for)
         }
     }
     m_time_step += 1;
-    *time_for += (omp_get_wtime() - for_start);
-    *time_update += (omp_get_wtime() - start);
+    double end = omp_get_wtime();
+    *time_for += (end - for_start);
+    *time_update += (end - start);
+    m_update_time_by_step.push_back(end-start);
     return !empty;
 }
 // ====================================================================================================================

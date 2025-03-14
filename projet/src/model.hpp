@@ -31,6 +31,7 @@ public:
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
     std::vector<std::uint8_t> fire_map() const { return m_fire_map; }
     std::vector<std::vector<std::uint8_t>> keys_by_step() const { return m_keys_by_step; }
+    std::vector<double> update_time_by_step() const { return m_update_time_by_step; }
     std::size_t time_step() const { return m_time_step; }
 
 private:
@@ -50,4 +51,5 @@ private:
     std::vector<std::vector<std::uint8_t>> m_keys_by_step;
     //std::unordered_map<std::size_t, std::uint8_t> m_fire_front;
     std::vector<std::uint8_t> m_fire_front;
+    std::vector<double> m_update_time_by_step;
 };

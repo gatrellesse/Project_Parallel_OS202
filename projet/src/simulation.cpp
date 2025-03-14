@@ -275,11 +275,21 @@ int main( int nargs, char* args[] ) {
     if(rank == 0) std::cout << "global_time " << omp_get_wtime() - global_start << std::endl;
     if(rank == 1) {
         std::ofstream out_file;
-        out_file.open("example-v"+params.version+".txt");
+        out_file.open("example-"+params.version+".txt");
         for( auto keys : simu->keys_by_step()) {
             for( auto element : keys ) out_file << " " << (int) element ;
             out_file << std::endl;
         }
+        std::ofstream update_time_file;
+        update_time_file.open("update-time-"+params.version+".txt");
+        for( auto element : simu->update_time_by_step()) update_time_file << " " << element ;
+        update_time_file << std::endl;
+    }
+    if(rank == 0) {
+        std::ofstream display_time_file;
+        display_time_file.open("display-time-"+params.version+".txt");
+        for( auto element : displayer->display_time_by_step()) display_time_file << " " << element ;
+        display_time_file << std::endl;
     }
     if(rank == 0) std::cout << "n_iterations " << n_iterations << std::endl;
     std::cout << std::fixed;

@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <string> 
 #include <iostream>
+#include <omp.h>
 #include "display.hpp"
 
 using namespace std::string_literals;
@@ -57,6 +58,7 @@ void
 Displayer::update( std::vector<std::uint8_t> const & vegetation_global_map,
                    std::vector<std::uint8_t> const & fire_global_map )
 {
+    double start = omp_get_wtime(); 
     int w, h;
     SDL_GetWindowSize(m_pt_window, &w, &h );
     SDL_SetRenderDrawColor(m_pt_renderer, 0,0,0, 255);
@@ -68,6 +70,7 @@ Displayer::update( std::vector<std::uint8_t> const & vegetation_global_map,
         SDL_RenderDrawPoint(m_pt_renderer, j, h-i-1); 
       }
     SDL_RenderPresent(m_pt_renderer);
+    m_display_time_by_step.push_back(omp_get_wtime() - start);
 }
 // ####################################################################################################################
 //                      Définition des méthodes statiques associées au pattern singleton utilisé

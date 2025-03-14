@@ -21,10 +21,11 @@ public:
 
     static std::shared_ptr<Displayer> init_instance( std::uint32_t t_width, std::uint32_t t_height );
     static std::shared_ptr<Displayer> instance();
+    std::vector<double> display_time_by_step() const { return m_display_time_by_step; }
 
 private:
     static std::shared_ptr<Displayer> unique_instance;
-
+    std::vector<double> m_display_time_by_step;
 
     SDL_Renderer *m_pt_renderer{nullptr};
     SDL_Surface  *m_pt_surface{nullptr};
