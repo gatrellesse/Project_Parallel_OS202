@@ -51,6 +51,6 @@ private:
     std::vector<std::uint8_t> m_vegetation_map, m_fire_map;
     double p1{0.}, p2{0.};
     double alphaEastWest, alphaWestEast, alphaSouthNorth, alphaNorthSouth;
-
+    int m_had_fire;
     std::uint8_t* m_fire_front;
 };

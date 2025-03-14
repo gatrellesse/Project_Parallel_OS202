@@ -215,7 +215,8 @@ int main(int nargs, char* args[]) {
                                              params.discretization);
     }
 
-    int32_t isRunning = 1;
+    int32_t isRunning = 1, sendRunning = 1;
+    std::vector<std::int32_t> isPRunning(world, 1);
     SDL_Event event;
     auto simulation_start = std::chrono::high_resolution_clock::now();
     double avg_update_time = 0.;
@@ -234,58 +235,78 @@ int main(int nargs, char* args[]) {
     size_t start = unit_size * comp_rank;
     size_t end = std::min(start + unit_size, simu_size);
     int n_iterations = 0;
+    MPI_Request send_request1, send_request2, send_request3;
     while (isRunning) {
         n_iterations++;
         if (rank != 0) {
-            auto start_time = std::chrono::high_resolution_clock::now();
-            isRunning = simu.update(computing_comm);
-            auto end_time = std::chrono::high_resolution_clock::now();
-            avg_update_time += std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+            std::cout << rank << std::endl;
+            MPI_Isend(&sendRunning, 1, MPI_INT32_T, 0, 100 * rank, MPI_COMM_WORLD, &send_request1);
 
-            // std::cout << "Time : "
-            //           << std::chrono::duration_cast<std::chrono::milliseconds>(
-            //                  end_time - start_time)
-            //                  .count()
-            //           << " ms" << std::endl;
-
-            MPI_Send(&isRunning, 1, MPI_INT32_T, 0, 100 * rank, MPI_COMM_WORLD);
             std::vector<uint8_t> fire_map(simu.fire_map());
-            MPI_Send(fire_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 101 * rank, MPI_COMM_WORLD);
+            MPI_Isend(fire_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 101 * rank, MPI_COMM_WORLD, &send_request2);
 
             std::vector<uint8_t> vegetal_map(simu.vegetal_map());
-            MPI_Send(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 102 * rank, MPI_COMM_WORLD);
+            MPI_Isend(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, 0, 102 * rank, MPI_COMM_WORLD, &send_request3);
 
-            MPI_Recv(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            int ready1 = 0, ready2 = 0, ready3 = 0;
+            while(!ready1 || !ready2 || !ready3) {
+                std::cout << rank << " Esperando" << std::endl;
+                MPI_Test(&send_request1, &ready1, MPI_STATUS_IGNORE);
+                MPI_Test(&send_request2, &ready2, MPI_STATUS_IGNORE);
+                MPI_Test(&send_request3, &ready3, MPI_STATUS_IGNORE);
+                auto start_time = std::chrono::high_resolution_clock::now();
+                sendRunning = simu.update(computing_comm);
+                auto end_time = std::chrono::high_resolution_clock::now();
+                avg_update_time += std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+            }
 
-            //if ((simu.time_step() & 31) == 0) {
-            //    std::cout << "Time step " << simu.time_step()
-            //              << "\n===============" << std::endl;
-            //    std::cout.flush();
-            //}
-
-            // std::this_thread::sleep_for(0.1s);
-        }
+            if(!sendRunning) {
+                std::cout << rank << " Terminei" << std::endl;
+                MPI_Isend(&sendRunning, 1, MPI_INT32_T, 0, 100 * rank, MPI_COMM_WORLD, &send_request1);
+                MPI_Recv(&isRunning, 1, MPI_INT32_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+       }
 
         if (rank == 0) {
             std::vector<uint8_t> fire_map(map_sz), vegetal_map(map_sz);
             int actually_running = 0;
             for (int i = 1; i < world; i++) {
-                MPI_Recv(&isRunning, 1, MPI_INT32_T, i, 100 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                actually_running |= isRunning;
+                MPI_Request request1, request2;
+                std::cout << "testando " << i << " " << isPRunning[i];
+                if(isPRunning[i]) MPI_Recv(&isPRunning[i], 1, MPI_INT32_T, i, 100 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                std::cout << " recebi " << isPRunning[i] << std::endl;
+                actually_running |= isPRunning[i];
+                if(!isPRunning[i]) std::cout << "A" << std::endl;
                 int comp_rank = i - 1, comp_size = world - 1;
 
                 int unit_size = simu_size / comp_size;
                 size_t start = unit_size * comp_rank;
                 size_t end = std::min(start + unit_size, simu_size);
 
-                MPI_Recv(fire_map.data() + start, end - start + 1, MPI_UINT8_T, i, 101 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, i, 102 * i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                if(!isPRunning[i]) std::cout << "A" << std::endl;
+                if(isPRunning[i]) MPI_Irecv(fire_map.data() + start, end - start + 1, MPI_UINT8_T, i, 101 * i, MPI_COMM_WORLD, &request1);
+                if(!isPRunning[i]) std::cout << "A" << std::endl;
+                if(isPRunning[i]) MPI_Irecv(vegetal_map.data() + start, end - start + 1, MPI_UINT8_T, i, 102 * i, MPI_COMM_WORLD, &request2);
+                if(!isPRunning[i]) std::cout << "A" << std::endl;
+                 int ready1 = 0, ready2 = 0;
+                while(isPRunning[i] && (!ready1 || !ready2)) {
+                    std::cout << "Display esperando " << i << std::endl;
+                    MPI_Test(&request1, &ready1, MPI_STATUS_IGNORE);
+                    MPI_Test(&request2, &ready2, MPI_STATUS_IGNORE);
+                }
+                std::cout << "Recebi " << i << std::endl;
+                if(!isPRunning[i]) std::cout << "A" << std::endl;
+                if(!isPRunning[i]) std::cout << world << std::endl;
             }
+            std::cout << std::endl;
             isRunning = actually_running;
-            for (int i = 1; i < world; i++) {
-                MPI_Send(&actually_running, 1, MPI_INT32_T, i, 0, MPI_COMM_WORLD);
+            std::cout << isRunning << std::endl;
+            if(!actually_running) {
+                std::cout << rank << " Terminei" << std::endl;
+                for (int i = 1; i < world; i++) {
+                    MPI_Send(&isRunning, 1, MPI_INT32_T, i, 0, MPI_COMM_WORLD);
+                }
             }
-
             auto start_time = std::chrono::high_resolution_clock::now();
             displayer->update(vegetal_map, fire_map);
             frame_count++;
@@ -294,12 +315,9 @@ int main(int nargs, char* args[]) {
         }
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT) {
             isRunning = 0;
-            for (int i = 1; i < world; i++) {
-                MPI_Send(&isRunning, 1, MPI_INT32_T, i, 0, MPI_COMM_WORLD);
-            }
-            break;
         }
     }
+    std::cout << rank << " Sai" << std::endl;
     std::cout << std::fixed;
     if (rank == 1) {
         std::cout << std::setprecision(10) << "avg_time_update " << avg_update_time / simu.time_step() / 1000000 << std::endl;

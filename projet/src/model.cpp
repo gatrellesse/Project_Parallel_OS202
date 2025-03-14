@@ -29,7 +29,8 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
       m_wind_speed(std::sqrt(t_wind[0] * t_wind[0] + t_wind[1] * t_wind[1])),
       m_max_wind(t_max_wind),
       m_vegetation_map(t_discretization * t_discretization, 255u),
-      m_fire_map(t_discretization * t_discretization, 0u) {
+      m_fire_map(t_discretization * t_discretization, 0u),
+      m_had_fire(0){
     if (t_discretization == 0) {
         throw std::range_error("Le nombre de cases par direction doit être plus grand que zéro.");
     }
@@ -199,7 +200,9 @@ bool Model::update(MPI_Comm computing_comm) {
         // MPI_Recv(m_vegetation_map.data() + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 13, computing_comm, MPI_STATUS_IGNORE);
     }
 
-    return simulation_cells > 0;
+    if(simulation_cells > 0) m_had_fire = true;
+    if(m_had_fire) return simulation_cells > 0;
+    else return true;
 }
 // ====================================================================================================================
 std::size_t
