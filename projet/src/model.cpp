@@ -197,18 +197,26 @@ bool Model::update(MPI_Comm computing_comm) {
 
     if (rank < size - 1) {
         MPI_Send(m_fire_front + end, row_sz, MPI_UINT8_T, rank + 1, 12, computing_comm);
-        MPI_Send(m_vegetation_map.data() + end - row_sz, row_sz, MPI_UINT8_T, rank + 1, 13, computing_comm);
+        // MPI_Send(m_vegetation_map.data() + end - row_sz, row_sz, MPI_UINT8_T, rank + 1, 13, computing_comm);
         
-        MPI_Recv(m_fire_front + end - row_sz, row_sz, MPI_UINT8_T, rank - 1, 10, computing_comm, MPI_STATUS_IGNORE);
-        MPI_Recv(m_vegetation_map.data() + end, row_sz, MPI_UINT8_T, rank + 1, 11, computing_comm, MPI_STATUS_IGNORE);
+        std::uint8_t *recv_buf = new std::uint8_t[row_sz];
+        MPI_Recv(recv_buf, row_sz, MPI_UINT8_T, rank + 1, 10, computing_comm, MPI_STATUS_IGNORE);
+        for (size_t i = 0; i < row_sz; i++) {
+            m_fire_front[end + i] = std::max(m_fire_front[end + i], recv_buf[i]);
+        }
+        // MPI_Recv(m_vegetation_map.data() + end, row_sz, MPI_UINT8_T, rank + 1, 11, computing_comm, MPI_STATUS_IGNORE);
     }
 
     if(rank > 0) {
         MPI_Send(m_fire_front + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 10, computing_comm);
-        MPI_Send(m_vegetation_map.data() + start, row_sz, MPI_UINT8_T, rank - 1, 11, computing_comm);
-
-        MPI_Recv(m_fire_front + start, row_sz, MPI_UINT8_T, rank - 1, 12, computing_comm, MPI_STATUS_IGNORE);
-        MPI_Recv(m_vegetation_map.data() + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 13, computing_comm, MPI_STATUS_IGNORE);
+        // MPI_Send(m_vegetation_map.data() + start, row_sz, MPI_UINT8_T, rank - 1, 11, computing_comm);
+        
+        std::uint8_t *recv_buf = new std::uint8_t[row_sz];
+        MPI_Recv(recv_buf, row_sz, MPI_UINT8_T, rank - 1, 12, computing_comm, MPI_STATUS_IGNORE);
+        for (size_t i = 0; i < row_sz; i++) {
+            m_fire_front[start + i] = std::max(m_fire_front[start + i], recv_buf[i]);
+        }
+        // MPI_Recv(m_vegetation_map.data() + start - row_sz, row_sz, MPI_UINT8_T, rank - 1, 13, computing_comm, MPI_STATUS_IGNORE);
     }
     
     return simulation_cells > 0;
