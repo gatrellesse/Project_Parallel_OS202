@@ -206,9 +206,9 @@ void display_params(ParamsType const& params)
               << "\tNombre de cellules par direction : " << params.discretization << std::endl 
               << "\tVecteur vitesse : [" << params.wind[0] << ", " << params.wind[1] << "]" << std::endl
               << "\tPosition initiale du foyer (col, ligne) : " << params.start.column << ", " << params.start.row << std::endl;
-schedule(dynamic, 64)}
+}
 
-schedule(dynamic, 64)int main( int nargs, char* args[] )
+int main( int nargs, char* args[] )
 {
     auto params = parse_arguments(nargs-1, &args[1]);
     //display_params(params);
